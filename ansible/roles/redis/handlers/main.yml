@@ -1,0 +1,7 @@
+---
+- name: Start Redis
+  service:
+    name: redis
+    state: started
+    enabled: yes
+

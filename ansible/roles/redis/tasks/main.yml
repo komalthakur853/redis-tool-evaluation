@@ -1,0 +1,72 @@
+---
+- name: Ensure dependencies are installed on Ubuntu
+  apt:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - build-essential
+    - tcl
+  when: ansible_os_family == "Debian"
+
+- name: Ensure dependencies are installed on RedHat
+  yum:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - gcc
+    - make
+    - tcl
+  when: ansible_os_family == "RedHat"
+
+- name: Download Redis tarball
+  get_url:
+    url: "http://download.redis.io/releases/redis-{{ redis_version }}.tar.gz"
+    dest: "/tmp/redis-{{ redis_version }}.tar.gz"
+  when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+
+- name: Extract Redis tarball
+  unarchive:
+    src: "/tmp/redis-{{ redis_version }}.tar.gz"
+    dest: "/tmp/"
+    remote_src: yes
+  when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+
+- name: Build and install Redis
+  shell: |
+    cd /tmp/redis-{{ redis_version }}
+    make
+    make install
+  when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+
+- name: Configure Redis
+  shell: |
+    cd /tmp/redis-{{ redis_version }}
+    mkdir -p /etc/redis /var/lib/redis
+    cp redis.conf /etc/redis
+  when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+
+- name: Create Redis systemd unit file
+  copy:
+    dest: /etc/systemd/system/redis.service
+    content: |
+      [Unit]
+      Description=Redis In-Memory Data Store
+      After=network.target
+
+      [Service]
+      User=root
+      ExecStart=/usr/local/bin/redis-server /etc/redis/redis.conf
+      ExecStop=/usr/local/bin/redis-cli shutdown
+      Restart=always
+
+      [Install]
+      WantedBy=multi-user.target
+  when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+
+- name: Start Redis and enable on boot
+  systemd:
+    name: redis
+    state: started
+    enabled: yes
+  when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+

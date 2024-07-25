@@ -1,0 +1,9 @@
+---
+- hosts: ubuntu_hosts
+  roles:
+    - redis
+
+- hosts: redhat_hosts
+  roles:
+    - redis
+
