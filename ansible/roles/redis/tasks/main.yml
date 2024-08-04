@@ -62,11 +62,10 @@
 - name: Build and install Redis with or without jemalloc
   shell: |
     cd /tmp/redis-{{ redis_version }}
+    make distclean
     if [ -f /usr/local/lib/libjemalloc.a ]; then
-      make distclean
       make USE_JEMALLOC=1 JEMALLOC_LIB_DIR=/usr/local/lib
     else
-      make distclean
       make
     fi
     make install
