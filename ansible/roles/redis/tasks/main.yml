@@ -32,10 +32,17 @@
     dest: "/tmp/"
     remote_src: yes
 
-- name: Build and install Redis
+- name: Clean previous build artifacts
   shell: |
     cd /tmp/redis-{{ redis_version }}
     make distclean
+  args:
+    chdir: /tmp/redis-{{ redis_version }}
+  ignore_errors: yes
+
+- name: Build and install Redis
+  shell: |
+    cd /tmp/redis-{{ redis_version }}
     make MALLOC=libc
     make install
   args:
