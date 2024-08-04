@@ -6,8 +6,7 @@
   loop:
     - build-essential
     - tcl
-    - pkg-config
-    - libjemalloc-dev
+    - autoconf
   when: ansible_os_family == "Debian"
 
 - name: Ensure dependencies are installed on RedHat
@@ -18,8 +17,29 @@
     - gcc
     - make
     - tcl
-    - jemalloc-devel
+    - autoconf
   when: ansible_os_family == "RedHat"
+
+- name: Download and extract jemalloc
+  get_url:
+    url: "https://github.com/jemalloc/jemalloc/releases/download/5.2.1/jemalloc-5.2.1.tar.bz2"
+    dest: "/tmp/jemalloc-5.2.1.tar.bz2"
+  when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+
+- name: Extract jemalloc tarball
+  unarchive:
+    src: "/tmp/jemalloc-5.2.1.tar.bz2"
+    dest: "/tmp/"
+    remote_src: yes
+  when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+
+- name: Build and install jemalloc
+  shell: |
+    cd /tmp/jemalloc-5.2.1
+    ./configure
+    make
+    make install
+  when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
 
 - name: Download Redis tarball
   get_url:
@@ -36,8 +56,10 @@
 
 - name: Build and install Redis
   shell: |
+    export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
     cd /tmp/redis-{{ redis_version }}
-    make MALLOC=libc
+    make clean
+    make USE_JEMALLOC=1
     make install
   when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
 
@@ -45,7 +67,7 @@
   shell: |
     cd /tmp/redis-{{ redis_version }}
     mkdir -p /etc/redis /var/lib/redis
-    cp redis.conf /etc/redis
+    cp redis.conf /etc/redis/redis.conf
   when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
 
 - name: Create Redis systemd unit file
