@@ -6,6 +6,8 @@
   loop:
     - build-essential
     - tcl
+    - pkg-config
+    - libjemalloc-dev
   when: ansible_os_family == "Debian"
 
 - name: Ensure dependencies are installed on RedHat
@@ -16,6 +18,7 @@
     - gcc
     - make
     - tcl
+    - jemalloc-devel
   when: ansible_os_family == "RedHat"
 
 - name: Download Redis tarball
