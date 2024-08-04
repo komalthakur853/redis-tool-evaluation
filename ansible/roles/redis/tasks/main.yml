@@ -3,10 +3,11 @@
   apt:
     name: "{{ item }}"
     state: present
+    update_cache: yes
   loop:
     - build-essential
     - tcl
-    - wget
+    - pkg-config
   when: ansible_os_family == "Debian"
 
 - name: Ensure dependencies are installed on RedHat
@@ -17,42 +18,37 @@
     - gcc
     - make
     - tcl
-    - wget
+    - pkgconfig
   when: ansible_os_family == "RedHat"
 
 - name: Download Redis tarball
   get_url:
     url: "http://download.redis.io/releases/redis-{{ redis_version }}.tar.gz"
     dest: "/tmp/redis-{{ redis_version }}.tar.gz"
-  when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
 
 - name: Extract Redis tarball
   unarchive:
     src: "/tmp/redis-{{ redis_version }}.tar.gz"
     dest: "/tmp/"
     remote_src: yes
-  when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
 
-- name: Fetch jemalloc dependency
+- name: Build jemalloc
   shell: |
     cd /tmp/redis-{{ redis_version }}/deps
     make jemalloc
-  when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
 
 - name: Build and install Redis
   shell: |
     cd /tmp/redis-{{ redis_version }}
     make distclean
-    make
+    make USE_SYSTEMD=yes
     make install
-  when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
 
 - name: Configure Redis
   shell: |
     cd /tmp/redis-{{ redis_version }}
     mkdir -p /etc/redis /var/lib/redis
     cp redis.conf /etc/redis
-  when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
 
 - name: Create Redis systemd unit file
   copy:
@@ -61,20 +57,43 @@
       [Unit]
       Description=Redis In-Memory Data Store
       After=network.target
-
       [Service]
-      User=root
+      User=redis
+      Group=redis
       ExecStart=/usr/local/bin/redis-server /etc/redis/redis.conf
       ExecStop=/usr/local/bin/redis-cli shutdown
       Restart=always
-
       [Install]
       WantedBy=multi-user.target
-  when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+
+- name: Create Redis user
+  user:
+    name: redis
+    system: yes
+    group: redis
+
+- name: Set permissions for Redis directories
+  file:
+    path: "{{ item }}"
+    owner: redis
+    group: redis
+    mode: '0755'
+  loop:
+    - /etc/redis
+    - /var/lib/redis
 
 - name: Start Redis and enable on boot
   systemd:
     name: redis
     state: started
     enabled: yes
-  when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+    daemon_reload: yes
+
+- name: Verify Redis installation
+  command: redis-cli --version
+  register: redis_version_output
+  changed_when: false
+
+- name: Display Redis version
+  debug:
+    var: redis_version_output.stdout
