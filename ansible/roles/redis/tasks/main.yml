@@ -1,24 +1,24 @@
 ---
 - name: Ensure dependencies are installed on Ubuntu
   apt:
-    name: "{{ item }}"
+    name: 
+      - build-essential
+      - tcl
+      - pkg-config
+      - libssl-dev
     state: present
     update_cache: yes
-  loop:
-    - build-essential
-    - tcl
-    - pkg-config
   when: ansible_os_family == "Debian"
 
 - name: Ensure dependencies are installed on RedHat
   yum:
-    name: "{{ item }}"
+    name: 
+      - gcc
+      - make
+      - tcl
+      - pkgconfig
+      - openssl-devel
     state: present
-  loop:
-    - gcc
-    - make
-    - tcl
-    - pkgconfig
   when: ansible_os_family == "RedHat"
 
 - name: Download Redis tarball
@@ -32,17 +32,17 @@
     dest: "/tmp/"
     remote_src: yes
 
-- name: Build jemalloc
-  shell: |
-    cd /tmp/redis-{{ redis_version }}/deps
-    make jemalloc
-
 - name: Build and install Redis
   shell: |
     cd /tmp/redis-{{ redis_version }}
     make distclean
-    make USE_SYSTEMD=yes
+    cd deps
+    make jemalloc
+    cd ..
+    make MALLOC=libc
     make install
+  args:
+    chdir: /tmp/redis-{{ redis_version }}
 
 - name: Configure Redis
   shell: |
