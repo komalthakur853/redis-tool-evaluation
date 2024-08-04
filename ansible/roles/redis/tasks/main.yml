@@ -37,14 +37,15 @@
 - name: Build and install Redis
   shell: |
     cd /tmp/redis-{{ redis_version }}
-    make
+    make MALLOC=libc
     make install
   when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
 
 - name: Configure Redis
   shell: |
+    cd /tmp/redis-{{ redis_version }}
     mkdir -p /etc/redis /var/lib/redis
-    cp /tmp/redis-{{ redis_version }}/redis.conf /etc/redis/
+    cp redis.conf /etc/redis
   when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
 
 - name: Create Redis systemd unit file
