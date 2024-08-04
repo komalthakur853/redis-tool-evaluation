@@ -1,103 +1,105 @@
 ---
-- name: Ensure dependencies are installed on Ubuntu
-  apt:
-    name:
-      - build-essential
-      - tcl
-      - pkg-config
-      - libssl-dev
-    state: present
-    update_cache: yes
-  when: ansible_os_family == "Debian"
+- name: Install Redis and jemalloc on Ubuntu and Red Hat
+  hosts: all
+  become: yes
+  tasks:
+    - name: Install build dependencies on Ubuntu
+      apt:
+        name:
+          - build-essential
+          - libssl-dev
+          - libcurl4-openssl-dev
+        state: present
+      when: ansible_os_family == "Debian"
 
-- name: Ensure dependencies are installed on RedHat
-  yum:
-    name:
-      - gcc
-      - make
-      - tcl
-      - pkgconfig
-      - openssl-devel
-    state: present
-  when: ansible_os_family == "RedHat"
+    - name: Install build dependencies on Red Hat
+      yum:
+        name:
+          - gcc
+          - make
+          - openssl-devel
+          - curl-devel
+        state: present
+      when: ansible_os_family == "RedHat"
 
-- name: Download Redis tarball
-  get_url:
-    url: "http://download.redis.io/releases/redis-{{ redis_version }}.tar.gz"
-    dest: "/tmp/redis-{{ redis_version }}.tar.gz"
+    - name: Clean previous build artifacts on Ubuntu
+      file:
+        path: /tmp/redis-6.2.6
+        state: absent
+      when: ansible_os_family == "Debian"
 
-- name: Extract Redis tarball
-  unarchive:
-    src: "/tmp/redis-{{ redis_version }}.tar.gz"
-    dest: "/tmp/"
-    remote_src: yes
+    - name: Clean previous build artifacts on Red Hat
+      file:
+        path: /tmp/redis-6.2.6
+        state: absent
+      when: ansible_os_family == "RedHat"
 
-- name: Clean previous build artifacts
-  shell: |
-    cd /tmp/redis-{{ redis_version }}
-    make distclean
-  args:
-    chdir: /tmp/redis-{{ redis_version }}
-  ignore_errors: yes
+    - name: Download and extract jemalloc
+      unarchive:
+        src: https://github.com/jemalloc/jemalloc/releases/download/5.2.1/jemalloc-5.2.1.tar.bz2
+        dest: /tmp/
+        remote_src: yes
+      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
 
-- name: Build and install Redis
-  shell: |
-    cd /tmp/redis-{{ redis_version }}
-    make MALLOC=libc
-    make install
-  args:
-    chdir: /tmp/redis-{{ redis_version }}
+    - name: Build and install jemalloc
+      shell: |
+        cd /tmp/jemalloc-5.2.1
+        ./configure
+        make
+        make install
+      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
 
-- name: Configure Redis
-  shell: |
-    cd /tmp/redis-{{ redis_version }}
-    mkdir -p /etc/redis /var/lib/redis
-    cp redis.conf /etc/redis
+    - name: Download and extract Redis
+      unarchive:
+        src: http://download.redis.io/releases/redis-6.2.6.tar.gz
+        dest: /tmp/
+        remote_src: yes
+      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
 
-- name: Create Redis systemd unit file
-  copy:
-    dest: /etc/systemd/system/redis.service
-    content: |
-      [Unit]
-      Description=Redis In-Memory Data Store
-      After=network.target
-      [Service]
-      User=redis
-      Group=redis
-      ExecStart=/usr/local/bin/redis-server /etc/redis/redis.conf
-      ExecStop=/usr/local/bin/redis-cli shutdown
-      Restart=always
-      [Install]
-      WantedBy=multi-user.target
+    - name: Build and install Redis
+      shell: |
+        cd /tmp/redis-6.2.6
+        make
+        make install
+      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
 
-- name: Create Redis user
-  user:
-    name: redis
-    system: yes
-    group: redis
+    - name: Create Redis configuration directory
+      file:
+        path: /etc/redis
+        state: directory
+      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
 
-- name: Set permissions for Redis directories
-  file:
-    path: "{{ item }}"
-    owner: redis
-    group: redis
-    mode: '0755'
-  loop:
-    - /etc/redis
-    - /var/lib/redis
+    - name: Copy Redis configuration file
+      copy:
+        src: redis.conf
+        dest: /etc/redis/redis.conf
+      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
 
-- name: Start Redis and enable on boot
-  systemd:
-    name: redis
-    state: started
-    enabled: yes
-    daemon_reload: yes
+    - name: Create Redis data directory
+      file:
+        path: /var/lib/redis
+        state: directory
+        owner: redis
+        group: redis
+        mode: '0755'
+      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
 
-- name: Verify Redis installation
-  command: redis-cli --version
-  register: redis_version_output
-  changed_when: false
+    - name: Set up Redis systemd service
+      copy:
+        src: redis.service
+        dest: /etc/systemd/system/redis.service
+      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
 
-- name: Display Redis version
-  debug:
-    var: redis_version_output.stdout
+    - name: Start and enable Redis service
+      systemd:
+        name: redis
+        state: started
+        enabled: yes
+      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+
+  handlers:
+    - name: restart redis
+      systemd:
+        name: redis
+        state: restarted
+      when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
