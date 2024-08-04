@@ -1,7 +1,7 @@
 ---
 - name: Ensure dependencies are installed on Ubuntu
   apt:
-    name: 
+    name:
       - build-essential
       - tcl
       - pkg-config
@@ -12,7 +12,7 @@
 
 - name: Ensure dependencies are installed on RedHat
   yum:
-    name: 
+    name:
       - gcc
       - make
       - tcl
@@ -36,9 +36,6 @@
   shell: |
     cd /tmp/redis-{{ redis_version }}
     make distclean
-    cd deps
-    make jemalloc
-    cd ..
     make MALLOC=libc
     make install
   args:
