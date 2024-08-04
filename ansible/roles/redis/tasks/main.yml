@@ -6,6 +6,7 @@
   loop:
     - build-essential
     - tcl
+    - wget
   when: ansible_os_family == "Debian"
 
 - name: Ensure dependencies are installed on RedHat
@@ -16,6 +17,7 @@
     - gcc
     - make
     - tcl
+    - wget
   when: ansible_os_family == "RedHat"
 
 - name: Download Redis tarball
@@ -31,9 +33,16 @@
     remote_src: yes
   when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
 
+- name: Fetch jemalloc dependency
+  shell: |
+    cd /tmp/redis-{{ redis_version }}/deps
+    make jemalloc
+  when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+
 - name: Build and install Redis
   shell: |
     cd /tmp/redis-{{ redis_version }}
+    make distclean
     make
     make install
   when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
@@ -69,4 +78,3 @@
     state: started
     enabled: yes
   when: ansible_os_family == "Debian" or ansible_os_family == "RedHat"
-
